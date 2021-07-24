@@ -1,4 +1,4 @@
-package sigs3scann3r
+package s3format
 
 import (
 	"regexp"
@@ -12,12 +12,14 @@ const (
 )
 
 func Format(bucket, format string) string {
+	var (
+		s3name, result string
+	)
+
 	target := strings.Replace(bucket, "http://", "", 1)
 	target = strings.Replace(target, "https://", "", 1)
 	target = strings.Replace(target, "s3://", "s3:////", 1)
 	target = strings.Replace(target, "//", "", 1)
-
-	var s3name string
 
 	if path, _ := regexp.MatchString(s3path, target); path {
 		target = strings.Replace(target, "s3.amazonaws.com/", "", 1)
@@ -35,8 +37,6 @@ func Format(bucket, format string) string {
 		s3name = target
 	}
 
-	var result string
-
 	switch format {
 	case "path":
 		result = "https://s3.amazonaws.com/" + s3name
@@ -51,4 +51,24 @@ func Format(bucket, format string) string {
 	}
 
 	return result
+}
+
+// ToPath
+func ToPath(bucket string) string {
+	return Format(bucket, "path")
+}
+
+// ToName
+func ToName(bucket string) string {
+	return Format(bucket, "name")
+}
+
+// ToURL
+func ToURL(bucket string) string {
+	return Format(bucket, "url")
+}
+
+// ToVHost
+func ToVHost(bucket string) string {
+	return Format(bucket, "vhost")
 }

@@ -2,27 +2,27 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"strings"
+	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/logrusorgru/aurora/v3"
-	"github.com/signedsecurity/sigs3scann3r/pkg/sigs3scann3r"
+	"github.com/signedsecurity/sigs3scann3r/pkg/s3format"
 )
 
 type options struct {
-	buckets string
-	dump    bool
-	noColor bool
-	output  string
-	verbose bool
+	inputList        string
+	concurrency      int
+	noColor, verbose bool
 }
 
 var (
@@ -42,10 +42,11 @@ func banner() {
 }
 
 func init() {
-	flag.BoolVar(&co.dump, "dump", false, "")
-	flag.StringVar(&co.buckets, "iL", "", "")
+	flag.StringVar(&co.inputList, "input-list", "", "")
+	flag.StringVar(&co.inputList, "iL", "", "")
+	flag.IntVar(&co.concurrency, "concurrency", 10, "")
+	flag.IntVar(&co.concurrency, "c", 10, "")
 	flag.BoolVar(&co.noColor, "nC", false, "")
-	flag.StringVar(&co.output, "o", "./buckets", "")
 	flag.BoolVar(&co.verbose, "v", false, "")
 
 	flag.Usage = func() {
@@ -55,11 +56,10 @@ func init() {
 		h += "  sigs3scann3r [OPTIONS]\n"
 
 		h += "\nOPTIONS:\n"
-		h += "  -dump          dump found open buckets locally (default: false)\n"
-		h += "  -iL            input buckets list (use `iL -` to read from stdin)\n"
-		h += "  -nC            no color mode (default: false)\n"
-		h += "  -o             buckets dump directory (default: ./buckets)\n"
-		h += "  -v             verbose mode\n"
+		h += "  -iL, --input-list   input buckets list (use `iL -` to read from stdin)\n"
+		h += "   -c, --concurrency  number of concurrent threads (default: 10)\n"
+		h += "  -nC, --no-color     no color mode (default: false)\n"
+		h += "   -v, --verbose      verbose mode\n"
 
 		fmt.Fprint(os.Stderr, h)
 	}
@@ -70,14 +70,14 @@ func init() {
 }
 
 func main() {
-	buckets := make(chan string)
+	buckets := make(chan string, co.concurrency)
 
 	go func() {
 		defer close(buckets)
 
 		var scanner *bufio.Scanner
 
-		if co.buckets == "-" {
+		if co.inputList == "-" {
 			stat, err := os.Stdin.Stat()
 			if err != nil {
 				log.Fatalln(errors.New("no stdin"))
@@ -89,7 +89,7 @@ func main() {
 
 			scanner = bufio.NewScanner(os.Stdin)
 		} else {
-			openedFile, err := os.Open(co.buckets)
+			openedFile, err := os.Open(co.inputList)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -109,124 +109,117 @@ func main() {
 		}
 	}()
 
-	for bucket := range buckets {
-		// Check existence & Get Region
-		res, err := http.Get("http://" + sigs3scann3r.Format(bucket, "vhost"))
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
+	wg := &sync.WaitGroup{}
 
-		defer res.Body.Close()
+	for i := 0; i < co.concurrency; i++ {
+		wg.Add(1)
 
-		if res.StatusCode == http.StatusNotFound {
-			fmt.Println(au.BrightRed("-").Bold(), sigs3scann3r.Format(bucket, "name"), "[", au.BrightRed("Not Found").Bold(), "]")
-			continue
-		}
+		go func() {
+			defer wg.Done()
 
-		fmt.Println(au.BrightGreen("+").Bold(), sigs3scann3r.Format(bucket, "name"))
+			cfg, err := config.LoadDefaultConfig(context.TODO())
+			if err != nil {
+				log.Fatalln(err)
+			}
 
-		// Extract Region
-		region := res.Header.Get("X-Amz-Bucket-Region")
+			for bucket := range buckets {
+				logger := log.New(os.Stdout, fmt.Sprintf(" %s | ", s3format.ToName(bucket)), 0)
 
-		fmt.Println("   ", au.BrightGreen("+").Bold(), "Region:", region)
-
-		scanner, err := sigs3scann3r.New(region)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		// Get bucket ACL
-		aclResult, err := scanner.Service.GetBucketAcl(&s3.GetBucketAclInput{
-			Bucket: aws.String(sigs3scann3r.Format(bucket, "name")),
-		})
-		if err != nil {
-			errorf(err.Error(), co.verbose)
-
-			ERRORS := []string{"AccessDenied", "AllAccessDisabled"}
-
-			for _, ERROR := range ERRORS {
-				if strings.Contains(fmt.Sprintln(err), ERROR) {
-					fmt.Println("   ", au.BrightRed("-").Bold(), "ACL:", ERROR)
-					break
+				// Check existence & Get Region
+				res, err := http.Get("http://" + s3format.ToVHost(bucket))
+				if err != nil {
+					fmt.Println(err)
+					continue
 				}
-			}
-		} else {
-			GROUPS := map[string]string{
-				"http://acs.amazonaws.com/groups/global/AllUsers":           "Everyone",
-				"http://acs.amazonaws.com/groups/global/AuthenticatedUsers": "Authenticated AWS users",
-			}
-			PERMISSIONS := map[string][]string{}
 
-			for _, grant := range aclResult.Grants {
-				if *grant.Grantee.Type == "Group" {
-					for GROUP := range GROUPS {
-						if *grant.Grantee.URI == GROUP {
-							PERMISSIONS[GROUPS[GROUP]] = append(PERMISSIONS[GROUPS[GROUP]], *grant.Permission)
-						}
+				if res.StatusCode == http.StatusNotFound {
+					logger.Printf("STATUS: %s\n", au.BrightRed("Not Found").Bold())
+					continue
+				} else {
+					logger.Printf("STATUS: %s\n", au.BrightGreen("Found").Bold())
+				}
+
+				// Extract Region
+				region := res.Header.Get("X-Amz-Bucket-Region")
+
+				logger.Printf("REGION: %s\n", region)
+
+				// New Client
+				client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+					o.Region = region
+				})
+
+				// GetBucketAcl
+
+				GetBucketAclInput := &s3.GetBucketAclInput{
+					Bucket: aws.String(s3format.ToName(bucket)),
+				}
+
+				GetBucketAclOutput, err := client.GetBucketAcl(context.TODO(), GetBucketAclInput)
+				if err != nil {
+					logger.Printf("GET ACL: %s\n", au.BrightRed("Failed").Bold())
+				} else {
+					GROUPS := map[string]string{
+						"http://acs.amazonaws.com/groups/global/AllUsers":           "Everyone",
+						"http://acs.amazonaws.com/groups/global/AuthenticatedUsers": "Authenticated AWS users",
 					}
-				}
-			}
+					PERMISSIONS := map[string][]string{}
 
-			fmt.Println("   ", au.BrightGreen("+").Bold(), "ACL:")
-			for PERMISSION := range PERMISSIONS {
-				fmt.Println("       ", au.BrightGreen("+").Bold(), PERMISSION, ":", strings.Join(PERMISSIONS[PERMISSION], ", "))
-			}
-		}
-
-		// List Objects
-		objectsResults, err := scanner.Service.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(bucket)})
-		if err != nil {
-			errorf(err.Error(), co.verbose)
-		}
-
-		if len(objectsResults.Contents) > 0 {
-			fmt.Println("   ", au.BrightGreen("+").Bold(), "Objects:")
-
-			for _, item := range objectsResults.Contents {
-				fmt.Println("       ", au.BrightGreen("+").Bold(), *item.Key, au.BrightGreen("size:"), *item.Size, au.BrightGreen("last_modified:"), *item.LastModified)
-
-				if co.dump {
-					output := co.output + "/" + sigs3scann3r.Format(bucket, "name") + "/" + *item.Key
-
-					if _, err := os.Stat(output); os.IsNotExist(err) {
-						directory, _ := path.Split(output)
-
-						if _, err := os.Stat(directory); os.IsNotExist(err) {
-							if directory != "" {
-								if err = os.MkdirAll(directory, os.ModePerm); err != nil {
-									log.Fatalln(err)
+					for _, grant := range GetBucketAclOutput.Grants {
+						if grant.Grantee.Type == "Group" {
+							for GROUP := range GROUPS {
+								if *grant.Grantee.URI == GROUP {
+									PERMISSIONS[GROUPS[GROUP]] = append(PERMISSIONS[GROUPS[GROUP]], string(grant.Permission))
 								}
 							}
 						}
 					}
 
-					file, err := os.Create(output)
-					if err != nil {
-						errorf(err.Error(), co.verbose)
+					ACL := []string{}
+
+					for PERMISSION := range PERMISSIONS {
+						ACL = append(ACL, fmt.Sprintf("%s: %s", PERMISSION, strings.Join(PERMISSIONS[PERMISSION], ", ")))
 					}
 
-					defer file.Close()
-
-					numBytes, err := scanner.Downloader.Download(file,
-						&s3.GetObjectInput{
-							Bucket: aws.String(bucket),
-							Key:    aws.String(*item.Key),
-						})
-					if err != nil {
-						errorf(err.Error(), co.verbose)
-					}
-
-					fmt.Println("Downloaded", file.Name(), numBytes, "bytes")
+					logger.Printf("GET ACL: %s\n", strings.Join(ACL, "; "))
 				}
-			}
-		}
-	}
-}
 
-func errorf(msg string, verbose bool, args ...interface{}) {
-	if verbose {
-		fmt.Fprintf(os.Stderr, msg+"\n", args...)
+				// PutObject
+
+				PutObjectInput := &s3.PutObjectInput{
+					Bucket: aws.String(s3format.ToName(bucket)),
+					Key:    aws.String("etetst.txt"),
+				}
+
+				_, err = client.PutObject(context.TODO(), PutObjectInput)
+				if err != nil {
+					logger.Printf("PUT OBJECTS: %s\n", au.BrightRed("Failed").Bold())
+				} else {
+					logger.Printf("PUT OBJECTS: %s\n", au.BrightGreen("Success").Bold())
+				}
+
+				// ListObjectsV2
+
+				ListObjectsV2Input := &s3.ListObjectsV2Input{
+					Bucket: aws.String(s3format.ToName(bucket)),
+				}
+
+				_, err = client.ListObjectsV2(context.TODO(), ListObjectsV2Input)
+				if err != nil {
+					logger.Printf("GET OBJECTS: %s\n", au.BrightRed("Failed").Bold())
+				} else {
+					logger.Printf("GET OBJECTS: %s\n", au.BrightGreen("Success").Bold())
+				}
+				// if ListObjectsV2Output != nil && ListObjectsV2Output.Contents != nil {
+				// 	fmt.Println("   ", au.BrightGreen("+").Bold(), "Objects:")
+
+				// 	for _, item := range ListObjectsV2Output.Contents {
+				// 		fmt.Println("       ", au.BrightGreen("+").Bold(), *item.Key, au.BrightGreen("size:"), item.Size, au.BrightGreen("last_modified:"), *item.LastModified)
+				// 	}
+				// }
+			}
+		}()
 	}
+
+	wg.Wait()
 }
