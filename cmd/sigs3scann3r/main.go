@@ -7,22 +7,25 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/logrusorgru/aurora/v3"
 	"github.com/signedsecurity/sigs3scann3r/pkg/s3format"
 )
 
 type options struct {
-	inputList        string
-	concurrency      int
-	noColor, verbose bool
+	concurrency int
+	dump        string
+	inputList   string
+	noColor     bool
+	verbose     bool
 }
 
 var (
@@ -42,11 +45,15 @@ func banner() {
 }
 
 func init() {
-	flag.StringVar(&co.inputList, "input-list", "", "")
-	flag.StringVar(&co.inputList, "iL", "", "")
 	flag.IntVar(&co.concurrency, "concurrency", 10, "")
 	flag.IntVar(&co.concurrency, "c", 10, "")
+	flag.StringVar(&co.dump, "dump", "", "")
+	flag.StringVar(&co.dump, "d", "", "")
+	flag.StringVar(&co.inputList, "input-list", "", "")
+	flag.StringVar(&co.inputList, "iL", "", "")
+	flag.BoolVar(&co.noColor, "no-color", false, "")
 	flag.BoolVar(&co.noColor, "nC", false, "")
+	flag.BoolVar(&co.verbose, "verbose", false, "")
 	flag.BoolVar(&co.verbose, "v", false, "")
 
 	flag.Usage = func() {
@@ -56,8 +63,9 @@ func init() {
 		h += "  sigs3scann3r [OPTIONS]\n"
 
 		h += "\nOPTIONS:\n"
-		h += "  -iL, --input-list   input buckets list (use `iL -` to read from stdin)\n"
 		h += "   -c, --concurrency  number of concurrent threads (default: 10)\n"
+		h += "   -d, --dump         location to dump objects\n"
+		h += "  -iL, --input-list   buckets list (use `-iL -` to read from stdin)\n"
 		h += "  -nC, --no-color     no color mode (default: false)\n"
 		h += "   -v, --verbose      verbose mode\n"
 
@@ -123,25 +131,25 @@ func main() {
 			}
 
 			for bucket := range buckets {
-				logger := log.New(os.Stdout, fmt.Sprintf(" %s | ", s3format.ToName(bucket)), 0)
+				bucket = s3format.ToName(bucket)
 
-				// Check existence & Get Region
-				res, err := http.Get("http://" + s3format.ToVHost(bucket))
+				logger := log.New(os.Stdout, fmt.Sprintf(" %s | ", bucket), 0)
+
+				// GetBucketRegion
+				region, err := manager.GetBucketRegion(context.TODO(), s3.NewFromConfig(cfg), bucket)
 				if err != nil {
-					fmt.Println(err)
+					var bnf manager.BucketNotFound
+
+					if errors.As(err, &bnf) {
+						logger.Printf("STATUS: %s\n", au.BrightRed("Not Found").Bold())
+						continue
+					}
+
+					log.Println("error:", err)
 					continue
 				}
 
-				if res.StatusCode == http.StatusNotFound {
-					logger.Printf("STATUS: %s\n", au.BrightRed("Not Found").Bold())
-					continue
-				} else {
-					logger.Printf("STATUS: %s\n", au.BrightGreen("Found").Bold())
-				}
-
-				// Extract Region
-				region := res.Header.Get("X-Amz-Bucket-Region")
-
+				logger.Printf("STATUS: %s\n", au.BrightGreen("Found").Bold())
 				logger.Printf("REGION: %s\n", region)
 
 				// New Client
@@ -150,9 +158,8 @@ func main() {
 				})
 
 				// GetBucketAcl
-
 				GetBucketAclInput := &s3.GetBucketAclInput{
-					Bucket: aws.String(s3format.ToName(bucket)),
+					Bucket: aws.String(bucket),
 				}
 
 				GetBucketAclOutput, err := client.GetBucketAcl(context.TODO(), GetBucketAclInput)
@@ -185,9 +192,8 @@ func main() {
 				}
 
 				// PutObject
-
 				PutObjectInput := &s3.PutObjectInput{
-					Bucket: aws.String(s3format.ToName(bucket)),
+					Bucket: aws.String(bucket),
 					Key:    aws.String("etetst.txt"),
 				}
 
@@ -199,24 +205,69 @@ func main() {
 				}
 
 				// ListObjectsV2
-
 				ListObjectsV2Input := &s3.ListObjectsV2Input{
-					Bucket: aws.String(s3format.ToName(bucket)),
+					Bucket: aws.String(bucket),
 				}
 
-				_, err = client.ListObjectsV2(context.TODO(), ListObjectsV2Input)
+				ListObjectsV2Output, err := client.ListObjectsV2(context.TODO(), ListObjectsV2Input)
 				if err != nil {
 					logger.Printf("GET OBJECTS: %s\n", au.BrightRed("Failed").Bold())
 				} else {
 					logger.Printf("GET OBJECTS: %s\n", au.BrightGreen("Success").Bold())
 				}
-				// if ListObjectsV2Output != nil && ListObjectsV2Output.Contents != nil {
-				// 	fmt.Println("   ", au.BrightGreen("+").Bold(), "Objects:")
 
-				// 	for _, item := range ListObjectsV2Output.Contents {
-				// 		fmt.Println("       ", au.BrightGreen("+").Bold(), *item.Key, au.BrightGreen("size:"), item.Size, au.BrightGreen("last_modified:"), *item.LastModified)
-				// 	}
-				// }
+				if ListObjectsV2Output != nil && ListObjectsV2Output.Contents != nil {
+					if co.dump != "" {
+						// create the directory
+						directory := filepath.Join(co.dump, bucket)
+
+						if _, err := os.Stat(directory); os.IsNotExist(err) {
+							if directory != "" {
+								err = os.MkdirAll(directory, os.ModePerm)
+								if err != nil {
+									fmt.Println(err)
+									continue
+								}
+							}
+						}
+
+						// Dump objects
+						downloader := manager.NewDownloader(client)
+
+						for _, object := range ListObjectsV2Output.Contents {
+							// Create the directories in the path
+							file := filepath.Join(directory, aws.ToString(object.Key))
+
+							if err := os.MkdirAll(filepath.Dir(file), 0775); err != nil {
+								log.Println(err)
+								continue
+							}
+
+							// Set up the local file
+							fd, err := os.Create(file)
+							if err != nil {
+								log.Println(err)
+								continue
+							}
+
+							// Download the file using the AWS SDK for Go
+							_, err = downloader.Download(
+								context.TODO(),
+								fd,
+								&s3.GetObjectInput{
+									Bucket: aws.String(bucket),
+									Key:    object.Key,
+								},
+							)
+							if err != nil {
+								log.Println(err)
+								continue
+							}
+
+							fd.Close()
+						}
+					}
+				}
 			}
 		}()
 	}

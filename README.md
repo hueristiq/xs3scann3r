@@ -50,8 +50,10 @@ sigs3scann3r -h
 To display help message for sigs3scann3r use the `-h` flag:
 
 ```
-$ sigs3scann3r -h
+sigs3scann3r -h
+```
 
+```
      _           _____                           _____
  ___(_) __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __
 / __| |/ _` / __| |_ \/ __|/ __/ _` | '_ \| '_ \  |_ \| '__|
@@ -63,11 +65,11 @@ USAGE:
   sigs3scann3r [OPTIONS]
 
 OPTIONS:
-  -iL, --input-list   input buckets list (use `iL -` to read from stdin)
    -c, --concurrency  number of concurrent threads (default: 10)
+   -d, --dump         location to dump objects
+  -iL, --input-list   buckets list (use `-iL -` to read from stdin)
   -nC, --no-color     no color mode (default: false)
    -v, --verbose      verbose mode
-
 ```
 
 sigs3scann3r takes buckets in the format:
