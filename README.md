@@ -1,8 +1,8 @@
-# sigs3scann3r
+# hqs3scann3r
 
-[![release](https://img.shields.io/github/release/signedsecurity/sigs3scann3r?style=flat&color=0040ff)](https://github.com/signedsecurity/sigs3scann3r/releases) ![maintenance](https://img.shields.io/badge/maintained%3F-yes-0040ff.svg) [![open issues](https://img.shields.io/github/issues-raw/signedsecurity/sigs3scann3r.svg?style=flat&color=0040ff)](https://github.com/signedsecurity/sigs3scann3r/issues?q=is:issue+is:open) [![closed issues](https://img.shields.io/github/issues-closed-raw/signedsecurity/sigs3scann3r.svg?style=flat&color=0040ff)](https://github.com/signedsecurity/sigs3scann3r/issues?q=is:issue+is:closed) [![license](https://img.shields.io/badge/license-MIT-gray.svg?colorB=0040FF)](https://github.com/signedsecurity/sigs3scann3r/blob/master/LICENSE) [![twitter](https://img.shields.io/badge/twitter-@signedsecurity-0040ff.svg)](https://twitter.com/signedsecurity)
+[![release](https://img.shields.io/github/release/hueristiq/hqs3scann3r?style=flat&color=0040ff)](https://github.com/hueristiq/hqs3scann3r/releases) ![maintenance](https://img.shields.io/badge/maintained%3F-yes-0040ff.svg) [![open issues](https://img.shields.io/github/issues-raw/hueristiq/hqs3scann3r.svg?style=flat&color=0040ff)](https://github.com/hueristiq/hqs3scann3r/issues?q=is:issue+is:open) [![closed issues](https://img.shields.io/github/issues-closed-raw/hueristiq/hqs3scann3r.svg?style=flat&color=0040ff)](https://github.com/hueristiq/hqs3scann3r/issues?q=is:issue+is:closed) [![license](https://img.shields.io/badge/license-MIT-gray.svg?colorB=0040FF)](https://github.com/hueristiq/hqs3scann3r/blob/master/LICENSE) [![twitter](https://img.shields.io/badge/twitter-@itshueristiq-0040ff.svg)](https://twitter.com/itshueristiq)
 
-sigs3scann3r is tool to scan AWS S3 bucket permissions.
+hqs3scann3r is tool to scan AWS S3 bucket permissions.
 
 ## Resources
 
@@ -23,46 +23,46 @@ sigs3scann3r is tool to scan AWS S3 bucket permissions.
 
 #### From Binary
 
-You can download the pre-built binary for your platform from this repository's [releases](https://github.com/signedsecurity/sigs3scann3r/releases/) page, extract, then move it to your `$PATH`and you're ready to go.
+You can download the pre-built binary for your platform from this repository's [releases](https://github.com/hueristiq/hqs3scann3r/releases/) page, extract, then move it to your `$PATH`and you're ready to go.
 
 #### From Source
 
-sigs3scann3r requires **go1.14+** to install successfully. Run the following command to get the repo
+hqs3scann3r requires **go1.17+** to install successfully. Run the following command to get the repo
 
 ```bash
-GO111MODULE=on go get -u -v github.com/signedsecurity/sigs3scann3r/cmd/sigs3scann3r
+go install -v github.com/hueristiq/hqs3scann3r/cmd/hqs3scann3r@latest
 ```
 
 #### From Github
 
 ```bash
-git clone https://github.com/signedsecurity/sigs3scann3r.git && \
-cd sigs3scann3r/cmd/sigs3scann3r/ && \
+git clone https://github.com/hueristiq/hqs3scann3r.git && \
+cd hqs3scann3r/cmd/hqs3scann3r/ && \
 go build . && \
-mv sigs3scann3r /usr/local/bin/ && \
-sigs3scann3r -h
+mv hqs3scann3r /usr/local/bin/ && \
+hqs3scann3r -h
 ```
 
 ## Usage
 
 > **NOTE:** To use this tool awscli is required to have been installed and configured.
 
-To display help message for sigs3scann3r use the `-h` flag:
+To display help message for hqs3scann3r use the `-h` flag:
 
 ```
-sigs3scann3r -h
+hqs3scann3r -h
 ```
 
 ```
-     _           _____                           _____
- ___(_) __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __
-/ __| |/ _` / __| |_ \/ __|/ __/ _` | '_ \| '_ \  |_ \| '__|
-\__ \ | (_| \__ \___) \__ \ (_| (_| | | | | | | |___) | |
-|___/_|\__, |___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v1.1.0
-       |___/
+ _               _____                           _____      
+| |__   __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __ 
+| '_ \ / _` / __| |_ \/ __|/ __/ _` | '_ \| '_ \  |_ \| '__|
+| | | | (_| \__ \___) \__ \ (_| (_| | | | | | | |___) | |   
+|_| |_|\__, |___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v1.1.0
+          |_|
 
 USAGE:
-  sigs3scann3r [OPTIONS]
+  hqs3scann3r [OPTIONS]
 
 OPTIONS:
    -c, --concurrency  number of concurrent threads (default: 10)
@@ -72,7 +72,7 @@ OPTIONS:
    -v, --verbose      verbose mode
 ```
 
-sigs3scann3r takes buckets in the format:
+hqs3scann3r takes buckets in the format:
 
 * Name - e.g. `flaws.cloud`
 * URL style - e.g. `s3://flaws.cloud`
@@ -91,4 +91,4 @@ sigs3scann3r takes buckets in the format:
 
 ## Contribution
 
-[Issues](https://github.com/signedsecurity/sigs3scann3r/issues) and [Pull Requests](https://github.com/signedsecurity/sigs3scann3r/pulls) are welcome!
+[Issues](https://github.com/hueristiq/hqs3scann3r/issues) and [Pull Requests](https://github.com/hueristiq/hqs3scann3r/pulls) are welcome!

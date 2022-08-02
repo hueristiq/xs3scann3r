@@ -16,8 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/hueristiq/hqs3scann3r/pkg/s3format"
 	"github.com/logrusorgru/aurora/v3"
-	"github.com/signedsecurity/sigs3scann3r/pkg/s3format"
 )
 
 type options struct {
@@ -35,12 +35,12 @@ var (
 
 func banner() {
 	fmt.Fprintln(os.Stderr, aurora.BrightBlue(`
-     _           _____                           _____
- ___(_) __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __
-/ __| |/ _`+"`"+` / __| |_ \/ __|/ __/ _`+"`"+` | '_ \| '_ \  |_ \| '__|
-\__ \ | (_| \__ \___) \__ \ (_| (_| | | | | | | |___) | |
-|___/_|\__, |___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v1.1.0
-       |___/
+ _               _____                           _____      
+| |__   __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __ 
+| '_ \ / _`+"`"+` / __| |_ \/ __|/ __/ _`+"`"+` | '_ \| '_ \  |_ \| '__|
+| | | | (_| \__ \___) \__ \ (_| (_| | | | | | | |___) | |   
+|_| |_|\__, |___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v1.1.0
+          |_|
 `).Bold())
 }
 
@@ -60,7 +60,7 @@ func init() {
 		banner()
 
 		h := "USAGE:\n"
-		h += "  sigs3scann3r [OPTIONS]\n"
+		h += "  hqs3scann3r [OPTIONS]\n"
 
 		h += "\nOPTIONS:\n"
 		h += "   -c, --concurrency  number of concurrent threads (default: 10)\n"

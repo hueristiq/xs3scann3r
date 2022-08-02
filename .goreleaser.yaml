@@ -1,7 +1,7 @@
 builds:
     -
-        binary: sigs3scann3r
-        main: cmd/sigs3scann3r/main.go
+        binary: hqs3scann3r
+        main: cmd/hqs3scann3r/main.go
         goos:
             - linux
             - windows
