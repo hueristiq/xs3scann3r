@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,110 +16,118 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/hueristiq/hqs3scann3r/pkg/s3format"
+	hqlog "github.com/hueristiq/hqgoutils/log"
+	"github.com/hueristiq/hqgoutils/log/formatter"
+	"github.com/hueristiq/hqgoutils/log/levels"
+	"github.com/hueristiq/xs3scann3r/internal/configuration"
+	"github.com/hueristiq/xs3scann3r/pkg/s3format"
 	"github.com/logrusorgru/aurora/v3"
+	"github.com/spf13/pflag"
 )
-
-type options struct {
-	concurrency int
-	dump        string
-	inputList   string
-	noColor     bool
-	verbose     bool
-}
 
 var (
-	co options
 	au aurora.Aurora
+
+	concurrency int
+	dump        string
+
+	input      string
+	monochrome bool
+	verbosity  string
 )
 
-func banner() {
-	fmt.Fprintln(os.Stderr, aurora.BrightBlue(`
- _               _____                           _____      
-| |__   __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __ 
-| '_ \ / _`+"`"+` / __| |_ \/ __|/ __/ _`+"`"+` | '_ \| '_ \  |_ \| '__|
-| | | | (_| \__ \___) \__ \ (_| (_| | | | | | | |___) | |   
-|_| |_|\__, |___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v1.2.0
-          |_|
-`).Bold())
-}
-
 func init() {
-	flag.IntVar(&co.concurrency, "concurrency", 10, "")
-	flag.IntVar(&co.concurrency, "c", 10, "")
-	flag.StringVar(&co.dump, "dump", "", "")
-	flag.StringVar(&co.dump, "d", "", "")
-	flag.StringVar(&co.inputList, "input-list", "", "")
-	flag.StringVar(&co.inputList, "iL", "", "")
-	flag.BoolVar(&co.noColor, "no-color", false, "")
-	flag.BoolVar(&co.noColor, "nC", false, "")
-	flag.BoolVar(&co.verbose, "verbose", false, "")
-	flag.BoolVar(&co.verbose, "v", false, "")
+	// parse flags
+	pflag.IntVarP(&concurrency, "concurrency", "c", 10, "")
+	pflag.StringVarP(&dump, "dump", "p", "", "")
+	pflag.StringVarP(&input, "input", "i", "", "")
+	pflag.BoolVarP(&monochrome, "monochrome", "m", false, "")
+	pflag.StringVarP(&verbosity, "verbosity", "v", string(levels.LevelInfo), "")
 
-	flag.Usage = func() {
-		banner()
+	pflag.CommandLine.SortFlags = false
+	pflag.Usage = func() {
+		fmt.Fprintln(os.Stderr, configuration.BANNER)
 
 		h := "USAGE:\n"
-		h += "  hqs3scann3r [OPTIONS]\n"
+		h += "  xs3scann3r [OPTIONS]\n"
 
-		h += "\nOPTIONS:\n"
+		h += "\nINPUT:\n"
+		h += "  -i, --input         input file (use `-` to get from stdin)\n"
+
+		h += "\nCONFIGURATIONS:\n"
 		h += "   -c, --concurrency  number of concurrent threads (default: 10)\n"
 		h += "   -d, --dump         location to dump objects\n"
-		h += "  -iL, --input-list   buckets list (use `-iL -` to read from stdin)\n"
-		h += "  -nC, --no-color     no color mode (default: false)\n"
-		h += "   -v, --verbose      verbose mode\n"
+
+		h += "\nOUTPUT:\n"
+		h += "  -m, --monochrome    disable output content coloring\n"
+		h += fmt.Sprintf("  -v, --verbosity     debug, info, warning, error, fatal or silent (default: %s)\n", string(levels.LevelInfo))
 
 		fmt.Fprint(os.Stderr, h)
 	}
 
-	flag.Parse()
+	pflag.Parse()
 
-	au = aurora.NewAurora(!co.noColor)
+	// initialize logger
+	hqlog.DefaultLogger.SetMaxLevel(levels.LevelStr(verbosity))
+	hqlog.DefaultLogger.SetFormatter(formatter.NewCLI(&formatter.CLIOptions{
+		Colorize: !monochrome,
+	}))
+
+	au = aurora.NewAurora(!monochrome)
 }
 
-func main() {
-	buckets := make(chan string, co.concurrency)
+func main() { //nolint:gocyclo // To be refactored
+	// input s3 buckets
+	buckets := make(chan string, concurrency)
 
 	go func() {
 		defer close(buckets)
 
-		var scanner *bufio.Scanner
+		var (
+			err  error
+			file *os.File
+			stat fs.FileInfo
+		)
 
-		if co.inputList == "-" {
-			stat, err := os.Stdin.Stat()
+		switch {
+		case input != "" && input == "-":
+			stat, err = os.Stdin.Stat()
 			if err != nil {
-				log.Fatalln(errors.New("no stdin"))
+				hqlog.Fatal().Msg("no stdin")
 			}
 
 			if stat.Mode()&os.ModeNamedPipe == 0 {
-				log.Fatalln(errors.New("no stdin"))
+				hqlog.Fatal().Msg("no stdin")
 			}
 
-			scanner = bufio.NewScanner(os.Stdin)
-		} else {
-			openedFile, err := os.Open(co.inputList)
+			file = os.Stdin
+		case input != "" && input != "-":
+			file, err = os.Open(input)
 			if err != nil {
-				log.Fatalln(err)
+				hqlog.Fatal().Msg(err.Error())
 			}
-			defer openedFile.Close()
-
-			scanner = bufio.NewScanner(openedFile)
+		default:
+			hqlog.Fatal().Msg("xs3scann3r takes input from stdin or file using ")
 		}
+
+		scanner := bufio.NewScanner(file)
 
 		for scanner.Scan() {
-			if scanner.Text() != "" {
-				buckets <- scanner.Text()
+			bucket := scanner.Text()
+
+			if bucket != "" {
+				buckets <- bucket
 			}
 		}
 
-		if scanner.Err() != nil {
-			log.Fatalln(scanner.Err())
+		if err := scanner.Err(); err != nil {
+			hqlog.Fatal().Msg(err.Error())
 		}
 	}()
 
 	wg := &sync.WaitGroup{}
 
-	for i := 0; i < co.concurrency; i++ {
+	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 
 		go func() {
@@ -127,7 +135,7 @@ func main() {
 
 			cfg, err := config.LoadDefaultConfig(context.TODO())
 			if err != nil {
-				log.Fatalln(err)
+				hqlog.Fatal().Msg(err.Error())
 			}
 
 			for bucket := range buckets {
@@ -146,6 +154,7 @@ func main() {
 					}
 
 					log.Println("error:", err)
+
 					continue
 				}
 
@@ -158,11 +167,11 @@ func main() {
 				})
 
 				// GetBucketAcl
-				GetBucketAclInput := &s3.GetBucketAclInput{
+				GetBucketACLInput := &s3.GetBucketAclInput{
 					Bucket: aws.String(bucket),
 				}
 
-				GetBucketAclOutput, err := client.GetBucketAcl(context.TODO(), GetBucketAclInput)
+				GetBucketACLOutput, err := client.GetBucketAcl(context.TODO(), GetBucketACLInput)
 				if err != nil {
 					logger.Printf("GET ACL: %s\n", au.BrightRed("Failed").Bold())
 				} else {
@@ -172,7 +181,7 @@ func main() {
 					}
 					PERMISSIONS := map[string][]string{}
 
-					for _, grant := range GetBucketAclOutput.Grants {
+					for _, grant := range GetBucketACLOutput.Grants {
 						if grant.Grantee.Type == "Group" {
 							for GROUP := range GROUPS {
 								if *grant.Grantee.URI == GROUP {
@@ -217,9 +226,9 @@ func main() {
 				}
 
 				if ListObjectsV2Output != nil && ListObjectsV2Output.Contents != nil {
-					if co.dump != "" {
+					if dump != "" {
 						// create the directory
-						directory := filepath.Join(co.dump, bucket)
+						directory := filepath.Join(dump, bucket)
 
 						if _, err := os.Stat(directory); os.IsNotExist(err) {
 							if directory != "" {

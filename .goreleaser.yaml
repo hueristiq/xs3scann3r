@@ -1,7 +1,16 @@
+before:
+    hooks:
+        - go mod tidy
+
 builds:
     -
-        binary: hqs3scann3r
-        main: cmd/hqs3scann3r/main.go
+        id: xs3scann3r-cli
+        main: cmd/xs3scann3r/main.go
+        binary: xs3scann3r
+
+        env:
+            - CGO_ENABLED=0
+
         goos:
             - linux
             - windows
@@ -11,10 +20,24 @@ builds:
             - 386
             - arm
             - arm64
+        ignore:
+            - 
+                goos: darwin
+                goarch: 386
+            -
+                goos: windows
+                goarch: arm
+            - 
+                goos: windows
+                goarch: arm64
+
+        flags:
+            - -trimpath
 
 archives:
     -
         id: tgz
+        builds: [xs3scann3r-cli]
         format: tar.gz
         replacements:
             darwin: macOS
@@ -22,3 +45,17 @@ archives:
             -
                 goos: windows
                 format: zip
+
+checksum:
+    algorithm: sha256
+
+announce:
+    slack:
+        enabled: true
+        channel: '#release'
+        username: GoReleaser
+        message_template: 'New Release: {{ .ProjectName }} {{.Tag}} is published! Check it out at {{ .ReleaseURL }}'
+
+    discord:
+        enabled: true
+        message_template: '**New Release: {{ .ProjectName }} {{.Tag}}** is published! Check it out at {{ .ReleaseURL }}'

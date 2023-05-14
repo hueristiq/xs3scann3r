@@ -1,19 +1,21 @@
-# hqs3scann3r
+# xs3scann3r
 
-[![release](https://img.shields.io/github/release/hueristiq/hqs3scann3r?style=flat&color=0040ff)](https://github.com/hueristiq/hqs3scann3r/releases) ![maintenance](https://img.shields.io/badge/maintained%3F-yes-0040ff.svg) [![open issues](https://img.shields.io/github/issues-raw/hueristiq/hqs3scann3r.svg?style=flat&color=0040ff)](https://github.com/hueristiq/hqs3scann3r/issues?q=is:issue+is:open) [![closed issues](https://img.shields.io/github/issues-closed-raw/hueristiq/hqs3scann3r.svg?style=flat&color=0040ff)](https://github.com/hueristiq/hqs3scann3r/issues?q=is:issue+is:closed) [![license](https://img.shields.io/badge/license-MIT-gray.svg?colorB=0040FF)](https://github.com/hueristiq/hqs3scann3r/blob/master/LICENSE) [![twitter](https://img.shields.io/badge/twitter-@itshueristiq-0040ff.svg)](https://twitter.com/itshueristiq)
+![made with go](https://img.shields.io/badge/made%20with-Go-0000FF.svg) [![release](https://img.shields.io/github/release/hueristiq/xs3scann3r?style=flat&color=0000FF)](https://github.com/hueristiq/xs3scann3r/releases) [![license](https://img.shields.io/badge/license-MIT-gray.svg?color=0000FF)](https://github.com/hueristiq/xs3scann3r/blob/master/LICENSE) ![maintenance](https://img.shields.io/badge/maintained%3F-yes-0000FF.svg) [![open issues](https://img.shields.io/github/issues-raw/hueristiq/xs3scann3r.svg?style=flat&color=0000FF)](https://github.com/hueristiq/xs3scann3r/issues?q=is:issue+is:open) [![closed issues](https://img.shields.io/github/issues-closed-raw/hueristiq/xs3scann3r.svg?style=flat&color=0000FF)](https://github.com/hueristiq/xs3scann3r/issues?q=is:issue+is:closed) [![contribution](https://img.shields.io/badge/contributions-welcome-0000FF.svg)](https://github.com/hueristiq/xs3scann3r/blob/master/CONTRIBUTING.md)
 
-hqs3scann3r is tool to scan AWS S3 bucket permissions.
+`xs3scann3r` is a command-line interface (CLI) utility to scan S3 bucket permissions.
 
 ## Resources
 
 * [Features](#features)
 * [Installation](#installation)
-	* [From Binary](#from-binary)
-	* [From source](#from-source)
-	* [From github](#from-github)
+	* [Install release binaries](#install-release-binaries)
+	* [Install source](#install-sources)
+		* [`go install ...`](#go-install)
+		* [`go build ...` the development Version](#go-build--the-development-version)
 * [Usage](#usage)
 	* [Interpreting Results](#interpreting-results)
 * [Contribution](#contribution)
+* [Licensing](#licensing)
 
 ## Features
 
@@ -21,58 +23,117 @@ hqs3scann3r is tool to scan AWS S3 bucket permissions.
 
 ## Installation
 
-#### From Binary
+### Install release binaries
 
-You can download the pre-built binary for your platform from this repository's [releases](https://github.com/hueristiq/hqs3scann3r/releases/) page, extract, then move it to your `$PATH`and you're ready to go.
+Visit the [releases page](https://github.com/hueristiq/xs3scann3r/releases) and find the appropriate archive for your operating system and architecture. Download the archive from your browser or copy its URL and retrieve it with `wget` or `curl`:
 
-#### From Source
+* ...with `wget`:
 
-hqs3scann3r requires **go1.17+** to install successfully. Run the following command to get the repo
+	```bash
+	wget https://github.com/hueristiq/xs3scann3r/releases/download/v<version>/xs3scann3r-<version>-linux-amd64.tar.gz
+	```
+
+* ...or, with `curl`:
+
+	```bash
+	curl -OL https://github.com/hueristiq/xs3scann3r/releases/download/v<version>/xs3scann3r-<version>-linux-amd64.tar.gz
+	```
+
+...then, extract the binary:
 
 ```bash
-go install -v github.com/hueristiq/hqs3scann3r/cmd/hqs3scann3r@latest
+tar xf xs3scann3r-<version>-linux-amd64.tar.gz
 ```
 
-#### From Github
+> **TIP:** The above steps, download and extract, can be combined into a single step with this onliner
+> 
+> ```bash
+> curl -sL https://github.com/hueristiq/xs3scann3r/releases/download/v<version>/xs3scann3r-<version>-linux-amd64.tar.gz | tar -xzv
+> ```
+
+**NOTE:** On Windows systems, you should be able to double-click the zip archive to extract the `xs3scann3r` executable.
+
+...move the `xs3scann3r` binary to somewhere in your `PATH`. For example, on GNU/Linux and OS X systems:
 
 ```bash
-git clone https://github.com/hueristiq/hqs3scann3r.git && \
-cd hqs3scann3r/cmd/hqs3scann3r/ && \
-go build . && \
-mv hqs3scann3r /usr/local/bin/ && \
-hqs3scann3r -h
+sudo mv xs3scann3r /usr/local/bin/
 ```
+
+**NOTE:** Windows users can follow [How to: Add Tool Locations to the PATH Environment Variable](https://msdn.microsoft.com/en-us/library/office/ee537574(v=office.14).aspx) in order to add `xs3scann3r` to their `PATH`.
+
+### Install source
+
+Before you install from source, you need to make sure that Go is installed on your system. You can install Go by following the official instructions for your operating system. For this, we will assume that Go is already installed.
+
+#### `go install ...`
+
+```bash
+go install -v github.com/hueristiq/xs3scann3r/cmd/xs3scann3r@latest
+```
+
+#### `go build ...` the development Version
+
+* Clone the repository
+
+	```bash
+	git clone https://github.com/hueristiq/xs3scann3r.git 
+	```
+
+* Build the utility
+
+	```bash
+	cd xs3scann3r/cmd/xs3scann3r && \
+	go build .
+	```
+
+* Move the `xs3scann3r` binary to somewhere in your `PATH`. For example, on GNU/Linux and OS X systems:
+
+	```bash
+	sudo mv xs3scann3r /usr/local/bin/
+	```
+
+	**NOTE:** Windows users can follow [How to: Add Tool Locations to the PATH Environment Variable](https://msdn.microsoft.com/en-us/library/office/ee537574(v=office.14).aspx) in order to add `xs3scann3r` to their `PATH`.
+
+
+**NOTE:** While the development version is a good way to take a peek at `xs3scann3r`'s latest features before they get released, be aware that it may have bugs. Officially released versions will generally be more stable.
 
 ## Usage
 
 > **NOTE:** To use this tool awscli is required to have been installed and configured.
 
-To display help message for hqs3scann3r use the `-h` flag:
+To display help message for xs3scann3r use the `-h` flag:
 
 ```
-hqs3scann3r -h
+`xs3scann3r` -h
 ```
 
+help message:
+
 ```
- _               _____                           _____      
-| |__   __ _ ___|___ / ___  ___ __ _ _ __  _ __ |___ / _ __ 
-| '_ \ / _` / __| |_ \/ __|/ __/ _` | '_ \| '_ \  |_ \| '__|
-| | | | (_| \__ \___) \__ \ (_| (_| | | | | | | |___) | |   
-|_| |_|\__, |___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v1.2.0
-          |_|
+          _____                           _____      
+__  _____|___ / ___  ___ __ _ _ __  _ __ |___ / _ __ 
+\ \/ / __| |_ \/ __|/ __/ _` | '_ \| '_ \  |_ \| '__|
+ >  <\__ \___) \__ \ (_| (_| | | | | | | |___) | |   
+/_/\_\___/____/|___/\___\__,_|_| |_|_| |_|____/|_| v0.0.0
+
+A CLI utility to scan S3 buckets permissions.
 
 USAGE:
-  hqs3scann3r [OPTIONS]
+  xs3scann3r [OPTIONS]
 
-OPTIONS:
+INPUT:
+  -i, --input         input file (use `-` to get from stdin)
+
+CONFIGURATIONS:
    -c, --concurrency  number of concurrent threads (default: 10)
    -d, --dump         location to dump objects
-  -iL, --input-list   buckets list (use `-iL -` to read from stdin)
-  -nC, --no-color     no color mode (default: false)
-   -v, --verbose      verbose mode
+
+OUTPUT:
+  -m, --monochrome    disable output content coloring
+  -v, --verbosity     debug, info, warning, error, fatal or silent (default: info)
 ```
 
-hqs3scann3r takes buckets in the format:
+xs3scann3r takes buckets in the format:
 
 * Name - e.g. `flaws.cloud`
 * URL style - e.g. `s3://flaws.cloud`
@@ -91,4 +152,8 @@ hqs3scann3r takes buckets in the format:
 
 ## Contribution
 
-[Issues](https://github.com/hueristiq/hqs3scann3r/issues) and [Pull Requests](https://github.com/hueristiq/hqs3scann3r/pulls) are welcome!
+[Issues](https://github.com/hueristiq/xs3scann3r/issues) and [Pull Requests](https://github.com/hueristiq/xs3scann3r/pulls) are welcome! Check out the [contribution guidelines.](./CONTRIBUTING.md)
+
+## Licensing
+
+This utility is distributed under the [MIT license](./LICENSE)
